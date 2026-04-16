@@ -3,101 +3,81 @@ import string
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import Boolean, Column, String, create_engine
+from sqlalchemy import Column, String, create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-
-# --- ГЕНЕРАТОРЫ ---
+# --- ГЕНЕРАТОР УНИКАЛЬНЫХ ID ---
 def generate_custom_id():
-    return "".join(
-        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8)
+    return "USR-" + "".join(
+        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(5)
     )
 
 
-def generate_verify_code():
-    return "".join(secrets.choice(string.digits) for _ in range(6))
-
-
-# --- НАСТРОЙКА БД ---
+# --- НАСТРОЙКА БАЗЫ ДАННЫХ ---
 DB_URL = "postgresql://deli_user:73xlPRxx75BQ@localhost/deli_db"
 engine = create_engine(DB_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-# --- МОДЕЛЬ ТАБЛИЦЫ ---
+# --- МОДЕЛЬ ТАБЛИЦЫ В БД (users) ---
 class UserDB(Base):
     __tablename__ = "users"
+
     user_id = Column(String, primary_key=True, default=generate_custom_id, unique=True)
     email = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
-    is_verified = Column(Boolean, default=False)
-    verification_code = Column(String, nullable=True)
-    link = Column(String, nullable=True)
+    link = Column(String, nullable=True)  # Твоё необязательное поле для ссылки!
 
 
+# Автоматически создаем таблицы в базе данных при старте
 Base.metadata.create_all(bind=engine)
 
 
-# --- СХЕМЫ ДАННЫХ ---
+# --- СХЕМЫ ДАННЫХ (Pydantic для валидации JSON от фронтенда) ---
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     first_name: str
     last_name: str
-
-
-class VerifyRequest(BaseModel):
-    email: str
-    code: str
+    link: str | None = None  # Говорим бэкенду: ссылка может быть, а может быть null
 
 
 app = FastAPI()
 
-# --- ЭНДПОИНТЫ ---
 
-
+# --- ЭНДПОИНТ РЕГИСТРАЦИИ ---
 @app.post("/register")
 def register(user: UserCreate):
     db = SessionLocal()
     try:
-        code = generate_verify_code()
+        # Переносим данные из JSON-запроса в модель базы данных
         new_user = UserDB(
             email=user.email,
             password=user.password,
             first_name=user.first_name,
             last_name=user.last_name,
-            verification_code=code,
+            link=user.link,  # Сохраняем ссылку в БД
         )
         db.add(new_user)
         db.commit()
+        db.refresh(new_user)
 
-        # Печатаем код в консоль сервера
-        print(f"\n[!] КОД ВЕРИФИКАЦИИ ДЛЯ {user.email}: {code}\n")
+        print(f"[+] Успешная регистрация пользователя: {user.email}")
+        return {
+            "status": "success",
+            "user_id": new_user.user_id,
+            "message": "User successfully registered",
+            "user_id": new_user.user_id,
+            "message": "User successfully registered"
+        }
 
-        return {"status": "success", "message": "Check server console for code"}
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Email already exists")
-    finally:
-        db.close()
-
-
-@app.post("/verify")
-def verify(data: VerifyRequest):
-    db = SessionLocal()
-    try:
-        user = db.query(UserDB).filter(UserDB.email == data.email).first()
-        if not user or user.verification_code != data.code:
-            raise HTTPException(status_code=400, detail="Invalid code or email")
-
-        user.is_verified = True
-        user.verification_code = None
-        db.commit()
-        return {"status": "verified", "user_id": user.user_id}
     finally:
         db.close()
