@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+
 # --- ГЕНЕРАТОР УНИКАЛЬНЫХ ID ---
 def generate_custom_id():
     return "USR-" + "".join(
@@ -38,13 +39,18 @@ class UserDB(Base):
 Base.metadata.create_all(bind=engine)
 
 
-# --- СХЕМЫ ДАННЫХ (Pydantic для валидации JSON от фронтенда) ---
+# --- СХЕМЫ ДАННЫХ (Pydantic для валидации JSON) ---
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     first_name: str
     last_name: str
-    link: str | None = None  # Говорим бэкенду: ссылка может быть, а может быть null
+    link: str | None = None  # Ссылка может быть null
 
 
 app = FastAPI()
@@ -55,13 +61,12 @@ app = FastAPI()
 def register(user: UserCreate):
     db = SessionLocal()
     try:
-        # Переносим данные из JSON-запроса в модель базы данных
         new_user = UserDB(
             email=user.email,
             password=user.password,
             first_name=user.first_name,
             last_name=user.last_name,
-            link=user.link,  # Сохраняем ссылку в БД
+            link=user.link,
         )
         db.add(new_user)
         db.commit()
@@ -72,12 +77,32 @@ def register(user: UserCreate):
             "status": "success",
             "user_id": new_user.user_id,
             "message": "User successfully registered",
-            "user_id": new_user.user_id,
-            "message": "User successfully registered"
         }
 
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Email already exists")
+    finally:
+        db.close()
+
+
+# --- ЭНДПОИНТ ВХОДА (ТЕПЕРЬ СТОИТ ОТДЕЛЬНО И БЕЗ ОТСТУПОВ) ---
+@app.post("/login")
+def login(credentials: UserLogin):
+    db = SessionLocal()
+    try:
+        # Ищем пользователя по почте
+        user = db.query(UserDB).filter(UserDB.email == credentials.email).first()
+
+        # Если юзер не найден или пароль не совпал
+        if not user or user.password != credentials.password:
+            raise HTTPException(status_code=400, detail="Invalid email or password")
+
+        print(f"[+] Успешный вход: {user.email}")
+        return {
+            "status": "success",
+            "user_id": user.user_id,
+            "message": "Successfully logged in",
+        }
     finally:
         db.close()
