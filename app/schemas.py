@@ -17,3 +17,11 @@ class UserLogin(BaseModel):
 class FriendRequest(BaseModel):
     user_id: str
     friend_id: str
+
+
+class FriendRespond(BaseModel):
+    user_id: str
+    friend_id: str
+    action: str
+
+

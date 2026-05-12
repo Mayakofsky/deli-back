@@ -11,8 +11,6 @@ router = APIRouter()
 def search_users(query: str, current_user_id: str):
     db = SessionLocal()
     try:
-        print(f"\n[SEARCH] Начало поиска для query='{query}'")
-
         if not query.strip():
             return []
 
@@ -33,12 +31,6 @@ def search_users(query: str, current_user_id: str):
             .filter(UserDB.user_id != current_user_id)
             .all()
         )
-
-        print(f"[SEARCH] База вернула строк: {len(users)}")
-        for u in users:
-            print(
-                f"  -> Найдено в БД: ID={u.user_id} | Name={u.first_name} | Surname={u.last_name} | Email={u.email} | Link={u.link}"
-            )
 
         result = []
         for u in users:
