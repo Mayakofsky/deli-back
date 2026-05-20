@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, friends, users
+from app.routers import auth, events, friends, users
 
 Base.metadata.create_all(bind=engine)
 
@@ -16,6 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/ping")
+def ping():
+    return {"pong": True}
+
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(friends.router)
+app.include_router(events.router)
