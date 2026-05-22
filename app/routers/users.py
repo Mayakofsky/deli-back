@@ -3,6 +3,7 @@ from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models import UserDB
+from app.schemas import GuestCreate
 
 router = APIRouter()
 
@@ -43,5 +44,22 @@ def search_users(query: str, current_user_id: str):
                 }
             )
         return result
+    finally:
+        db.close()
+
+
+@router.post("/users/guest")
+def create_guest(body: GuestCreate):
+    db = SessionLocal()
+    try:
+        guest = UserDB(first_name=body.name, last_name="", is_guest=True)
+        db.add(guest)
+        db.commit()
+        db.refresh(guest)
+        return {
+            "user_id": guest.user_id,
+            "first_name": guest.first_name,
+            "last_name": guest.last_name,
+        }
     finally:
         db.close()
