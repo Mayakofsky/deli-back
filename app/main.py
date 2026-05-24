@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, debts, events, friends, users
+from app.routers import auth, debts, events, friends, summary, users
 
 Base.metadata.create_all(bind=engine)
 
@@ -25,3 +25,4 @@ app.include_router(users.router)
 app.include_router(friends.router)
 app.include_router(events.router)
 app.include_router(debts.router)
+app.include_router(summary.router)
