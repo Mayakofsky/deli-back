@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
-from app.routers import auth, debts, events, friends, summary, users
+from app.routers import auth, debts, events, friends, summary, upload, users
 
 Base.metadata.create_all(bind=engine)
 
@@ -25,4 +26,7 @@ app.include_router(users.router)
 app.include_router(friends.router)
 app.include_router(events.router)
 app.include_router(debts.router)
+app.include_router(upload.router)
 app.include_router(summary.router)
+
+# app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
