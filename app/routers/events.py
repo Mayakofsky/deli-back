@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import (
+    EventConfirmationDB,
     EventDB,
     EventParticipantDB,
     EventPurchaseDB,
     PurchaseBeneficiaryDB,
     UserDB,
 )
-from app.schemas import EventCreate, EventUpdate, GuestCreate, ParticipantAdd, PurchaseCreate, PurchaseUpdate
+from app.schemas import EventConfirmRequest, EventCreate, GuestCreate, ParticipantAdd, PurchaseCreate, PurchaseUpdate
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -83,18 +84,14 @@ def get_event(event_id: str, db: Session = Depends(get_db)):
     return _event_full(event, db)
 
 
-@router.patch("/{event_id}")
-def update_event(event_id: str, body: EventUpdate, db: Session = Depends(get_db)):
+@router.delete("/{event_id}")
+def delete_event(event_id: str, db: Session = Depends(get_db)):
     event = db.query(EventDB).filter(EventDB.id == event_id).first()
     if not event:
         raise HTTPException(404, "Event not found")
-    if body.title is not None:
-        event.title = body.title
-    if body.deadline is not None:
-        event.deadline = body.deadline
+    db.delete(event)
     db.commit()
-    db.refresh(event)
-    return _event_full(event, db)
+    return {"ok": True}
 
 
 @router.post("/{event_id}/close")
@@ -287,23 +284,6 @@ def list_purchases(event_id: str, db: Session = Depends(get_db)):
     return [_purchase_full(p, db) for p in purchases]
 
 
-@router.delete("/{event_id}/purchases/{purchase_id}")
-def delete_purchase(event_id: str, purchase_id: str, db: Session = Depends(get_db)):
-    p = (
-        db.query(EventPurchaseDB)
-        .filter(
-            EventPurchaseDB.event_id == event_id,
-            EventPurchaseDB.id == purchase_id,
-        )
-        .first()
-    )
-    if not p:
-        raise HTTPException(404, "Purchase not found")
-    db.delete(p)
-    db.commit()
-    return {"ok": True}
-
-
 @router.get("/{event_id}/balances")
 def get_balances(event_id: str, db: Session = Depends(get_db)):
     purchases = (
@@ -345,41 +325,26 @@ def get_balances(event_id: str, db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/{event_id}/settlement")
-def get_settlement(event_id: str, db: Session = Depends(get_db)):
-    balances_data = get_balances(event_id, db)
-    balances = {b["user_id"]: b["balance"] for b in balances_data}
-    user_map = {b["user_id"]: b for b in balances_data}
+@router.get("/{event_id}/confirmations")
+def get_confirmations(event_id: str, db: Session = Depends(get_db)):
+    rows = db.query(EventConfirmationDB).filter(EventConfirmationDB.event_id == event_id).all()
+    return [r.user_id for r in rows]
 
-    debtors = [(uid, -amt) for uid, amt in balances.items() if amt < 0]
-    creditors = [(uid, amt) for uid, amt in balances.items() if amt > 0]
 
-    debtors.sort(key=lambda x: -x[1])
-    creditors.sort(key=lambda x: -x[1])
-
-    transactions = []
-    i = j = 0
-    while i < len(debtors) and j < len(creditors):
-        d_uid, d_amt = debtors[i]
-        c_uid, c_amt = creditors[j]
-        amount = min(d_amt, c_amt)
-        if amount > 0.01:
-            transactions.append(
-                {
-                    "from": user_map[d_uid],
-                    "to": user_map[c_uid],
-                    "amount": round(amount, 2),
-                }
-            )
-        debtors[i] = (d_uid, d_amt - amount)
-        creditors[j] = (c_uid, c_amt - amount)
-        if debtors[i][1] < 0.01:
-            i += 1
-        if creditors[j][1] < 0.01:
-            j += 1
-
-    return transactions
-
+@router.post("/{event_id}/confirm")
+def confirm_event(event_id: str, body: EventConfirmRequest, db: Session = Depends(get_db)):
+    event = db.query(EventDB).filter(EventDB.id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Event not found")
+    existing = db.query(EventConfirmationDB).filter(
+        EventConfirmationDB.event_id == event_id,
+        EventConfirmationDB.user_id == body.user_id,
+    ).first()
+    if not existing:
+        confirmation = EventConfirmationDB(event_id=event_id, user_id=body.user_id)
+        db.add(confirmation)
+        db.commit()
+    return _event_full(event, db)
 
 def _event_full(event: EventDB, db: Session) -> dict:
     participants = (
@@ -405,6 +370,7 @@ def _event_full(event: EventDB, db: Session) -> dict:
             for _, u in participants
         ],
         "balances": balances,
+        "confirmed_by": [r.user_id for r in db.query(EventConfirmationDB).filter(EventConfirmationDB.event_id == event.id).all()],
     }
 
 

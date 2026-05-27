@@ -16,6 +16,11 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    link: str | None = None
+    photo_url: str | None = None
+
+
 class FriendRequest(BaseModel):
     user_id: str
     friend_id: str
@@ -72,4 +77,9 @@ class DebtCreate(BaseModel):
 
 
 class DebtUpdate(BaseModel):
-    status: str
+    status: str | None = None
+    payment_photo_url: str | None = None
+
+
+class EventConfirmRequest(BaseModel):
+    user_id: str
