@@ -1,9 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import func
 
 from app.database import SessionLocal
 from app.models import UserDB
-from app.schemas import GuestCreate
+from app.schemas import GuestCreate, UserUpdate
 
 router = APIRouter()
 
@@ -41,9 +41,46 @@ def search_users(query: str, current_user_id: str):
                     "email": u.email,
                     "first_name": u.first_name,
                     "last_name": u.last_name,
+                    "link": u.link,
+                    "photo_url": u.photo_url,
                 }
             )
         return result
+    finally:
+        db.close()
+
+
+@router.get("/users/{user_id}")
+def get_user(user_id: str):
+    db = SessionLocal()
+    try:
+        user = db.query(UserDB).filter(UserDB.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {
+            "user_id": user.user_id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "link": user.link,
+            "photo_url": user.photo_url,
+        }
+    finally:
+        db.close()
+
+
+@router.patch("/users/{user_id}")
+def update_user(user_id: str, body: UserUpdate):
+    db = SessionLocal()
+    try:
+        user = db.query(UserDB).filter(UserDB.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        user.link = body.link
+        if body.photo_url is not None:
+            user.photo_url = body.photo_url
+        db.commit()
+        return {"ok": True}
     finally:
         db.close()
 

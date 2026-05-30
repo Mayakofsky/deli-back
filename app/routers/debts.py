@@ -50,12 +50,24 @@ def list_debts(user_id: str, status: str | None = None, db: Session = Depends(ge
     return [_debt_full(d, db) for d in debts]
 
 
+
+@router.get("/{debt_id}")
+def get_debt(debt_id: str, db: Session = Depends(get_db)):
+    debt = db.query(DebtDB).filter(DebtDB.id == debt_id).first()
+    if not debt:
+        raise HTTPException(404, "Debt not found")
+    return _debt_full(debt, db)
+
+
 @router.patch("/{debt_id}")
 def update_debt(debt_id: str, body: DebtUpdate, db: Session = Depends(get_db)):
     debt = db.query(DebtDB).filter(DebtDB.id == debt_id).first()
     if not debt:
         raise HTTPException(404, "Debt not found")
-    debt.status = body.status
+    if body.status is not None:
+        debt.status = body.status
+    if body.payment_photo_url is not None:
+        debt.payment_photo_url = body.payment_photo_url
     db.commit()
     return {"ok": True}
 
@@ -79,6 +91,7 @@ def _debt_full(debt: DebtDB, db: Session) -> dict:
             "user_id": creditor.user_id,
             "first_name": creditor.first_name,
             "last_name": creditor.last_name,
+            "photo_url": creditor.photo_url,
         }
         if creditor
         else None,
@@ -86,6 +99,7 @@ def _debt_full(debt: DebtDB, db: Session) -> dict:
             "user_id": debtor.user_id,
             "first_name": debtor.first_name,
             "last_name": debtor.last_name,
+            "photo_url": debtor.photo_url,
         }
         if debtor
         else None,
@@ -93,6 +107,7 @@ def _debt_full(debt: DebtDB, db: Session) -> dict:
         "description": debt.description,
         "deadline": debt.deadline.isoformat() if debt.deadline else None,
         "photo_url": debt.photo_url,
+        "payment_photo_url": debt.payment_photo_url,
         "status": debt.status,
         "created_at": debt.created_at.isoformat() if debt.created_at else None,
     }
