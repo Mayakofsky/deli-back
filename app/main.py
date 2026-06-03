@@ -29,4 +29,4 @@ app.include_router(debts.router)
 app.include_router(upload.router)
 app.include_router(summary.router)
 
-# app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

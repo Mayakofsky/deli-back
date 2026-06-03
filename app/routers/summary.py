@@ -33,6 +33,7 @@ def summary_owed(user_id: str, db: Session = Depends(get_db)):
                     "user_id": debtor.user_id,
                     "first_name": debtor.first_name,
                     "last_name": debtor.last_name,
+                    "photo_url": debtor.photo_url,
                 }
                 if debtor
                 else None,
@@ -92,6 +93,7 @@ def summary_due(user_id: str, db: Session = Depends(get_db)):
                     "user_id": creditor.user_id,
                     "first_name": creditor.first_name,
                     "last_name": creditor.last_name,
+                    "photo_url": creditor.photo_url,
                 }
                 if creditor
                 else None,

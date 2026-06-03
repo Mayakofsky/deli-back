@@ -2,7 +2,6 @@ import os
 import uuid
 
 from fastapi import APIRouter, UploadFile
-from fastapi.responses import FileResponse
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -18,12 +17,4 @@ async def upload_photo(file: UploadFile):
     content = await file.read()
     with open(path, "wb") as f:
         f.write(content)
-    return {"url": f"/upload/{filename}"}
-
-
-@router.get("/{filename}")
-def get_photo(filename: str):
-    path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(path):
-        return {"error": "not found"}, 404
-    return FileResponse(path)
+    return {"url": f"/uploads/{filename}"}
